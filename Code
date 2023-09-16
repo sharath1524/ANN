@@ -1,0 +1,108 @@
+from lib2to3.pgen2.grammar import opmap_raw
+from math import ceil,floor
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+
+dF = pd.read_csv('red.csv')
+ 
+
+def normalizeData(dF):
+    dFN = dF.copy()
+    for column in dFN.columns:
+            dFN[column] = (dFN[column] - dFN[column].min()) / (dFN[column].max() - dFN[column].min())
+    return dFN
+    
+dFNew = normalizeData(dF)
+
+
+def sigmoidOpFunction(Ip):
+    ans = (1.0/(1 + np.exp(-Ip)))
+    return ans
+
+
+def forward_pass(ipPatterns, w1, w2):
+    ipHid = (np.dot(w1.T, ipPatterns))
+    opHid = sigmoidOpFunction(ipHid)
+
+    ipOp = (np.dot(w2.T, opHid))
+    opOp = sigmoidOpFunction(ipOp)
+
+    return  ipHid, opHid, ipOp, opOp
+
+def meanSquareError(train, targetOp, obtainedOp):
+    return (0.5*sum((targetOp.T - obtainedOp.T)**2))/train
+
+def back_prop(trainPatterns, trainTargetOp, opHid, opOp, w2):
+    mult_value1 = (np.multiply(-(trainTargetOp - opOp), (opOp - opOp**2)))
+    dw2 = np.dot(opHid, mult_value1.T)
+
+    mult_value2 =np.multiply(np.dot(w2, mult_value1), (opHid - opHid**2))
+    dw1 = np.dot(trainPatterns, mult_value2.T)
+
+    return dw2/train, dw1/train
+
+
+
+IpLayer = int(input("No. of Ip Neurons: "))
+OpLayer = int(input("No. of Op neurons: "))
+
+
+trainIp = int(input("No. of training patterns: "))
+testIp = int(input("No. of testing patterns: "))
+
+train = trainIp
+test = testIp
+# print(f'''{train} & {test}''')
+
+trainPatterns = (dFNew.iloc[0:train, 0:11].to_numpy()).T
+trainTargetOp = (dFNew.iloc[0:train, 11:].to_numpy()).T
+testPatterns = (dFNew.iloc[train+1:train+test, 0:11].to_numpy()).T
+testTargetOp = (dFNew.iloc[train+1:train+test, 11:].to_numpy()).T
+
+HidLayer = IpLayer
+w1 = np.random.rand(IpLayer, HidLayer)
+w2 = np.random.rand(HidLayer, OpLayer)
+
+
+
+learningRate = 0.9
+error = []
+errorCondn = 1
+iterationsNumber = 1
+
+############## Training part of the program ########
+for errorCondn in range(100000):
+# while(errorCondn >= 0.001):
+    ipHid, opHid, ipOp, opOp = forward_pass(trainPatterns, w1, w2)
+    dw2, dw1 = back_prop(trainPatterns, trainTargetOp, opHid, opOp, w2)
+    w1 = w1 - (learningRate*dw1)
+    w2 = w2 - (learningRate*dw2)
+    error.append(meanSquareError(train, trainTargetOp, opOp))
+    errorCondn = meanSquareError(train, trainTargetOp, opOp)
+    iterationsNumber = iterationsNumber + 1
+
+error = np.array(error)
+
+ipHidTest, opHidTest, ipOpTest, opOpTest = forward_pass(testPatterns, w1, w2)
+testError = meanSquareError(test, testTargetOp, opOpTest)
+
+f = open('f.csv', 'w+')
+
+f.write(f'''Training mean square error after {iterationsNumber}  iterations is {error[-1]}. 
+
+''')
+
+############ Printing test Op dF to the file #########
+f.write(f'''Error after testing: {testError}
+
+''')
+
+f.write(f'''Output after testing:  
+''')
+opOpTest = opOpTest.T
+for i in opOpTest:
+    np.savetxt(f, i)
+
+
